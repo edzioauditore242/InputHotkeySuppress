@@ -1,43 +1,15 @@
 #pragma once
-#include "SKSEMenuFramework.h"
 #include "Configuration.h"
+#include "SKSEMenuFramework.h"
+
 namespace UI {
     void Register();
-    namespace Example1 {
-        inline uint32_t AddFormId = 0x64B33;
-        inline RE::TESBoundObject* AddBoundObject = nullptr;
-        void LookupForm();
-        void __stdcall Render();
-    }
-    namespace Example2{
-        void __stdcall Render();
-        void __stdcall RenderWindow();
-        inline MENU_WINDOW ExampleWindow;
-    }
-    namespace Example3 {
-        inline ImGuiMCP::ImGuiTextFilter* filter;
-        inline std::string CheckMark = FontAwesome::UnicodeToUtf8(0xf00c);
-        void __stdcall Render();
-    }
-    namespace Example4 {
-        inline std::string TitleText = "This is an " + FontAwesome::UnicodeToUtf8(0xf2b4) + " Font Awesome usage example";
-        inline std::string Button1Text = FontAwesome::UnicodeToUtf8(0xf0e9) + " Umbrella";
-        inline std::string Button2Text = FontAwesome::UnicodeToUtf8(0xf06e) + " Eye";
-        void __stdcall Render();
-    }
-    namespace Example5 {
-        void __stdcall Render();
-        void __stdcall RenderOverlay();
-        bool __stdcall OnInput(RE::InputEvent* event);
-        void __stdcall RenderWindow();
-        inline MENU_WINDOW NonPausingWindow;
-    }
-    namespace Example6 {
-        inline std::vector<SKSEMenuFramework::Model::EventType> calledEvents;
-        void __stdcall Render();
-        void __stdcall OnEvent(SKSEMenuFramework::Model::EventType eventType);
-    }
-    namespace Example7 {
-        void __stdcall Render();
-    }
-};
+
+    void __stdcall RenderSettings();
+    void __stdcall RenderAddWindow();  // NEW
+    void __stdcall RenderOverlay();
+    bool __stdcall OnInput(RE::InputEvent* event);
+
+    // Window handle
+    inline MENU_WINDOW AddKeyWindow = nullptr;
+}

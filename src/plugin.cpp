@@ -1,18 +1,21 @@
 #include "Plugin.h"
 
+#include "Translation.h"
+
 void OnMessage(SKSE::MessagingInterface::Message* message) {
     if (message->type == SKSE::MessagingInterface::kDataLoaded) {
-        UI::Example1::LookupForm();
-    }
-    if (message->type == SKSE::MessagingInterface::kPostLoad) {
+        Configuration::Load();
+        Translation::Load();
     }
 }
 
-SKSEPluginLoad(const SKSE::LoadInterface *skse) {
+SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);
     SKSE::GetMessagingInterface()->RegisterListener(OnMessage);
+
     SetupLog();
-    logger::info("Plugin loaded");
+    logger::info("Input Hotkey Suppression loaded");
+
     UI::Register();
     return true;
 }

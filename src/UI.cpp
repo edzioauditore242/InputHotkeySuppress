@@ -1,263 +1,272 @@
 ﻿#include "UI.h"
 
+#include <cstring>
+
+#include "Translation.h"
+
 void UI::Register() {
     if (!SKSEMenuFramework::IsInstalled()) {
+        logger::error("SKSE Menu Framework is not installed!");
         return;
     }
-    Example3::filter = new ImGuiMCP::ImGuiTextFilter();
-    Configuration::Example2::Buffer[0] = '\0';
-    SKSEMenuFramework::SetSection(MOD_NAME);
-    SKSEMenuFramework::AddSectionItem("Font Awesome", Example4::Render);
-    SKSEMenuFramework::AddSectionItem("Add Item", Example1::Render);
-    SKSEMenuFramework::AddSectionItem("Folder Example/Example 2", Example2::Render);
-    UI::Example2::ExampleWindow = SKSEMenuFramework::AddWindow(Example2::RenderWindow, true);
-    SKSEMenuFramework::AddSectionItem("Folder Example/Example 3", Example3::Render);
 
-    SKSEMenuFramework::AddSectionItem("Example 5", Example5::Render);
-    SKSEMenuFramework::AddSectionItem("Example 6", Example6::Render);
-    SKSEMenuFramework::AddSectionItem("Example 7", Example7::Render);
-    SKSEMenuFramework::AddHudElement(Example5::RenderOverlay);
-    SKSEMenuFramework::AddInputEvent(Example5::OnInput);
-    UI::Example5::NonPausingWindow = SKSEMenuFramework::AddWindow(Example5::RenderWindow, false);
+    SKSEMenuFramework::SetSection("Input Hotkey Suppression");
+    SKSEMenuFramework::AddSectionItem("Settings", RenderSettings);
 
-    SKSEMenuFramework::AddEvent(UI::Example6::OnEvent, 0);
+    // Create the Add Key window (starts closed)
+    AddKeyWindow = SKSEMenuFramework::AddWindow(RenderAddWindow, true);
+    if (AddKeyWindow) {
+        AddKeyWindow->IsOpen = false;
+    }
+
+    SKSEMenuFramework::AddHudElement(RenderOverlay);
+    SKSEMenuFramework::AddInputEvent(OnInput);
+
+    logger::info("UI registered");
 }
 
-void UI::Example1::LookupForm() {
-    auto addForm = RE::TESForm::LookupByID(AddFormId);
-    if (addForm) {
-        AddBoundObject = addForm->As<RE::TESBoundObject>();
+// =========================================================
+// MAIN SETTINGS PAGE
+// =========================================================
+void __stdcall UI::RenderSettings() {
+    ImGuiMCP::Checkbox(Translation::Get("ENABLE_MOD"), &Configuration::Enabled);
+    ImGuiMCP::Checkbox(Translation::Get("SHOW_STATUS_OVERLAY"), &Configuration::ShowStatusOverlay);
+    ImGuiMCP::Checkbox(Translation::Get("DEBUG"), &Configuration::Debug);
+
+    ImGuiMCP::Separator();
+    ImGuiMCP::Text(Translation::Get("HOLD_HOTKEY"));
+
+    char hotkeyText[64];
+    sprintf_s(hotkeyText, Translation::Get("CURRENT_HOTKEY"), Configuration::Hotkey);
+    ImGuiMCP::Text(hotkeyText);
+
+    if (Configuration::IsListeningForHotkey) {
+        ImGuiMCP::TextColored(ImGuiMCP::ImVec4(1.0f, 1.0f, 0.0f, 1.0f), Translation::Get("LISTENING_HOTKEY"));
     } else {
-        AddBoundObject = nullptr;
-    }
-}
-
-void __stdcall UI::Example1::Render() {
-    ImGuiMCP::InputScalar("form id", ImGuiMCP::ImGuiDataType_U32, &AddFormId, NULL, NULL, "%08X");
-
-    if (ImGuiMCP::Button("Search")) {
-        LookupForm();
-    }
-
-    if (AddBoundObject) {
-        ImGuiMCP::Text("How much %s would you like to add?", AddBoundObject->GetName());
-        ImGuiMCP::SliderInt("number", &Configuration::Example1::Number, 1, 100);
-        if (ImGuiMCP::Button("Add")) {
-            auto player = RE::PlayerCharacter::GetSingleton()->As<RE::TESObjectREFR>();
-            player->AddObjectToContainer(AddBoundObject, nullptr, Configuration::Example1::Number, nullptr);
+        if (ImGuiMCP::Button(Translation::Get("CHANGE_HOTKEY"))) {
+            Configuration::IsListeningForHotkey = true;
         }
-    } else {
-        ImGuiMCP::Text("Form not found");
+    }
+
+    ImGuiMCP::Separator();
+    ImGuiMCP::Text(Translation::Get("SUPPRESSED_KEYS"));
+
+    // List
+    for (size_t i = 0; i < Configuration::SuppressedList.size(); ++i) {
+        auto& entry = Configuration::SuppressedList[i];
+
+        ImGuiMCP::PushID(static_cast<int>(i));
+
+        char label[128];
+        sprintf_s(label, "%s  (0x%X)", entry.name.c_str(), entry.keyCode);
+        ImGuiMCP::Text(label);
+
+        ImGuiMCP::SameLine();
+        if (ImGuiMCP::Button(Translation::Get("REMOVE"))) {
+            Configuration::SuppressedList.erase(Configuration::SuppressedList.begin() + i);
+            Configuration::Save();
+            ImGuiMCP::PopID();
+            break;
+        }
+
+        ImGuiMCP::PopID();
+    }
+
+    ImGuiMCP::Spacing();
+    if (ImGuiMCP::Button(Translation::Get("ADD_KEY_BUTTON"))) {
+        // Reset temporary data and open window
+        Configuration::TempNewName.clear();
+        Configuration::TempNewKeyCode = 0;
+        Configuration::IsListeningForNewKey = false;
+        if (AddKeyWindow) {
+            AddKeyWindow->IsOpen = true;
+        }
+    }
+
+    ImGuiMCP::Separator();
+    if (ImGuiMCP::Button(Translation::Get("SAVE_SETTINGS"))) {
+        Configuration::Save();
+    }
+    ImGuiMCP::SameLine();
+    if (ImGuiMCP::Button(Translation::Get("RELOAD_SETTINGS"))) {
+        Configuration::Load();
+        Translation::Load();
     }
 }
 
-void __stdcall UI::Example2::Render() {
-    if (ImGuiMCP::Button("Open Window")) {
-        ExampleWindow->IsOpen = true;
+// =========================================================
+// ADD KEY WINDOW
+// =========================================================
+void __stdcall UI::RenderAddWindow() {
+    if (!AddKeyWindow || !AddKeyWindow->IsOpen) {
+        return;
     }
 
-    ImGuiMCP::InputText("string", Configuration::Example2::Buffer, 256);
-    ImGuiMCP::ColorEdit4("Color", &Configuration::Example2::Color);
-    float samples[100];
-    for (int n = 0; n < 100; n++) samples[n] = sinf(n * 0.2f + ImGuiMCP::GetTime() * 1.5f);
-    ImGuiMCP::PlotLines("Samples", samples, 100);
-    ImGuiMCP::TextColored(ImGuiMCP::ImVec4(1, 1, 0, 1), "Important Stuff");
-    ImGuiMCP::BeginChild("Scrolling");
-    for (int n = 0; n < 50; n++) ImGuiMCP::Text("%04d: Some text", n);
-    ImGuiMCP::EndChild();
-}
-
-void __stdcall UI::Example2::RenderWindow() {
     auto viewport = ImGuiMCP::GetMainViewport();
+    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{420.0f, 280.0f}, ImGuiMCP::ImGuiCond_Appearing);
+    ImGuiMCP::SetNextWindowPos(ImGuiMCP::ImVec2{viewport->Size.x * 0.5f, viewport->Size.y * 0.5f}, ImGuiMCP::ImGuiCond_Appearing, ImGuiMCP::ImVec2{0.5f, 0.5f});
 
-    auto center = ImGuiMCP::ImGuiViewportManager::GetCenter(viewport);
-    ImGuiMCP::SetNextWindowPos(center, ImGuiMCP::ImGuiCond_Appearing, ImGuiMCP::ImVec2{0.5f, 0.5f});
-    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{viewport->Size.x * 0.4f, viewport->Size.y * 0.4f}, ImGuiMCP::ImGuiCond_Appearing);
-    ImGuiMCP::Begin("My First Tool##MenuEntiryFromMod", nullptr,
-                    ImGuiMCP::ImGuiWindowFlags_MenuBar);  // If two mods have the same window name, and they open at the
-                                                          // same
-                                                          // time.
-                                                          // The window content will be merged, is good practice to add ##ModName after the window name.
-    if (ImGuiMCP::BeginMenuBar()) {
-        if (ImGuiMCP::BeginMenu("File")) {
-            if (ImGuiMCP::MenuItem("Open..", "Ctrl+O")) { /* Do stuff */
-            }
-            if (ImGuiMCP::MenuItem("Save", "Ctrl+S")) { /* Do stuff */
-            }
-            if (ImGuiMCP::MenuItem("Close", "Ctrl+W")) {
-                ExampleWindow->IsOpen = false;
-            }
-            ImGuiMCP::EndMenu();
+    ImGuiMCP::Begin(Translation::Get("ADD_WINDOW_TITLE"), nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse);
+
+    // Name
+    static char nameBuffer[64] = "";
+    ImGuiMCP::InputText(Translation::Get("NAME"), nameBuffer, sizeof(nameBuffer));
+
+    ImGuiMCP::Spacing();
+
+    // Listen button
+    if (Configuration::IsListeningForNewKey) {
+        ImGuiMCP::TextColored(ImGuiMCP::ImVec4(1.0f, 1.0f, 0.0f, 1.0f), Translation::Get("LISTENING_NEW_KEY"));
+    } else {
+        if (ImGuiMCP::Button(Translation::Get("LISTEN_FOR_KEY"))) {
+            Configuration::IsListeningForNewKey = true;
+            Configuration::TempNewKeyCode = 0;
         }
-        ImGuiMCP::EndMenuBar();
     }
-    if (ImGuiMCP::Button("Close Window")) {
-        ExampleWindow->IsOpen = false;
+
+    ImGuiMCP::Spacing();
+
+    // Show detected key
+    if (Configuration::TempNewKeyCode != 0) {
+        char detected[64];
+        sprintf_s(detected, Translation::Get("DETECTED_KEY"), Configuration::TempNewKeyCode);
+        ImGuiMCP::TextColored(ImGuiMCP::ImVec4(0.3f, 1.0f, 0.3f, 1.0f), detected);
+    } else {
+        ImGuiMCP::TextDisabled(Translation::Get("NO_KEY_YET"));
     }
+
+    ImGuiMCP::Spacing();
+    ImGuiMCP::Separator();
+    ImGuiMCP::Spacing();
+
+    // Save / Cancel
+    if (ImGuiMCP::Button(Translation::Get("SAVE"))) {
+        if (strlen(nameBuffer) > 0 && Configuration::TempNewKeyCode != 0) {
+            if (!Configuration::IsKeySuppressed(Configuration::TempNewKeyCode)) {
+                Configuration::SuppressedEntry entry;
+                entry.name = nameBuffer;
+                entry.keyCode = Configuration::TempNewKeyCode;
+                Configuration::SuppressedList.push_back(entry);
+                Configuration::Save();
+
+                if (Configuration::Debug) {
+                    logger::info("Added suppressed key: {} (0x{:X})", entry.name, entry.keyCode);
+                }
+            }
+        }
+
+        // Close and reset
+        nameBuffer[0] = '\0';
+        Configuration::TempNewName.clear();
+        Configuration::TempNewKeyCode = 0;
+        Configuration::IsListeningForNewKey = false;
+        AddKeyWindow->IsOpen = false;
+    }
+
+    ImGuiMCP::SameLine();
+
+    if (ImGuiMCP::Button(Translation::Get("CANCEL"))) {
+        nameBuffer[0] = '\0';
+        Configuration::TempNewName.clear();
+        Configuration::TempNewKeyCode = 0;
+        Configuration::IsListeningForNewKey = false;
+        AddKeyWindow->IsOpen = false;
+    }
+
     ImGuiMCP::End();
 }
 
-void __stdcall UI::Example3::Render() {
-    static ImGuiMCP::ImGuiTableFlags flags = ImGuiMCP::ImGuiTableFlags_Resizable | ImGuiMCP::ImGuiTableFlags_Reorderable | ImGuiMCP::ImGuiTableFlags_Hideable | ImGuiMCP::ImGuiTableFlags_RowBg | ImGuiMCP::ImGuiTableFlags_BordersOuter |
-                                             ImGuiMCP::ImGuiTableFlags_BordersV | ImGuiMCP::ImGuiTableFlags_NoBordersInBody | ImGuiMCP::ImGuiTableFlags_ScrollY;
-
-    filter->Draw();
-
-    if (ImGuiMCP::BeginTable("table1", 3, flags)) {
-        ImGuiMCP::TableSetupColumn("One");
-        ImGuiMCP::TableSetupColumn("Two");
-        ImGuiMCP::TableSetupColumn("Three");
-        ImGuiMCP::TableHeadersRow();
-
-        for (int row = 0; row < 5; row++) {
-            ImGuiMCP::TableNextRow();
-            for (int column = 0; column < 3; column++) {
-                ImGuiMCP::TableSetColumnIndex(column);
-                char buf[32];
-                sprintf(buf, "Hello %d,%d", column, row);
-
-                if (filter->PassFilter(buf)) {
-                    FontAwesome::PushSolid();
-                    ImGuiMCP::Text(CheckMark.c_str());
-                    FontAwesome::Pop();
-                    ImGuiMCP::SameLine();
-                }
-
-                if (column == 2) {
-                    ImGuiMCP::Button(buf, ImGuiMCP::ImVec2(-FLT_MIN, 0.0f));
-                } else {
-                    ImGuiMCP::TextUnformatted(buf);
-                }
-            }
-        }
-        ImGuiMCP::EndTable();
+// =========================================================
+// STATUS OVERLAY
+// =========================================================
+void __stdcall UI::RenderOverlay() {
+    if (!Configuration::ShowStatusOverlay || !Configuration::Enabled) {
+        return;
     }
-}
 
-void __stdcall UI::Example4::Render() {
-    SKSEMenuFramework::PushFont("fa-brands-400");
-    ImGuiMCP::Text(TitleText.c_str());
-    FontAwesome::Pop();
-
-    ImGuiMCP::Button(Button1Text.c_str());
-
-    ImGuiMCP::SameLine();
-
-    SKSEMenuFramework::PushFont("fa-regular-400");
-    ImGuiMCP::Button(Button2Text.c_str());
-    FontAwesome::Pop();
-}
-
-void __stdcall UI::Example5::Render() {
-    auto texture = SKSEMenuFramework::LoadTexture("Data\\interface\\unlit-bomb.svg", {100, 100});
-    ImGuiMCP::Text("Open non pausing menu: ");
-    ImGuiMCP::SameLine();
-    if (ImGuiMCP::ImageButton("Open non pausing menu##button", texture, {100, 100})) {
-        NonPausingWindow->IsOpen = !NonPausingWindow->IsOpen;
+    if (!Configuration::IsBlocking) {
+        return;
     }
-}
 
-void __stdcall UI::Example5::RenderOverlay() {
     if (SKSEMenuFramework::IsAnyBlockingWindowOpened()) {
         return;
     }
+
     auto drawList = ImGuiMCP::GetForegroundDrawList();
-    // ImVec2 center = ImGui::GetIO()->DisplaySize;
-    // center.x *= 0.5;
-    // center.y *= 0.5;
-    // ImGui::ImDrawListManager::AddCircle(drawList, center, 100, IM_COL32(255, 0, 0, 255), 100, 10);
+    const char* text = Translation::Get("SUPPRESSION_ACTIVE");
 
-    const char* text = "Press B to toggle the info window \nPress N to toggle the menu framework hotkey \nPress M to open and close the menu framework window via API";
     ImGuiMCP::ImVec2 textSize = ImGuiMCP::CalcTextSize(text, 0, false, 0);
-    ImGuiMCP::ImVec2 textPos = ImGuiMCP::ImVec2(ImGuiMCP::GetIO()->DisplaySize.x - textSize.x - 20, 20);  // 10px padding from edges
-    ImGuiMCP::ImDrawListManager::AddText(drawList, textPos, IM_COL32(255, 255, 255, 255), text);
-}
-bool __stdcall UI::Example5::OnInput(RE::InputEvent* event) {
-    bool blockThisUserInput = false;
 
-    if (event->device == RE::INPUT_DEVICE::kKeyboard) {
-        if (auto button = event->AsButtonEvent()) {
-            if (button->GetIDCode() == RE::BSWin32KeyboardDevice::Key::kB && button->IsDown()) {
-                NonPausingWindow->IsOpen = !NonPausingWindow->IsOpen;
-                blockThisUserInput = true;
+    ImGuiMCP::ImVec2 pos{ImGuiMCP::GetIO()->DisplaySize.x - textSize.x - 20.0f, 20.0f};
+
+    ImGuiMCP::ImDrawListManager::AddText(drawList, pos, IM_COL32(255, 60, 60, 230), text);
+}
+
+// =========================================================
+// INPUT HANDLER
+// =========================================================
+bool __stdcall UI::OnInput(RE::InputEvent* event) {
+    if (!Configuration::Enabled || !event) {
+        return false;
+    }
+
+    if (event->device != RE::INPUT_DEVICE::kKeyboard) {
+        return false;
+    }
+
+    auto* button = event->AsButtonEvent();
+    if (!button) {
+        return false;
+    }
+
+    const std::uint32_t keyCode = button->GetIDCode();
+
+    // Change main Hold Hotkey
+    if (Configuration::IsListeningForHotkey && button->IsDown()) {
+        Configuration::Hotkey = keyCode;
+        Configuration::IsListeningForHotkey = false;
+        Configuration::Save();
+        if (Configuration::Debug) {
+            logger::info("Hold Hotkey changed to 0x{:X}", keyCode);
+        }
+        return true;
+    }
+
+    // Listening inside Add Key window
+    if (Configuration::IsListeningForNewKey && button->IsDown()) {
+        Configuration::TempNewKeyCode = keyCode;
+        Configuration::IsListeningForNewKey = false;
+        if (Configuration::Debug) {
+            logger::info("Detected new key for suppression: 0x{:X}", keyCode);
+        }
+        return true;
+    }
+
+    // Hold Hotkey logic
+    if (keyCode == Configuration::Hotkey) {
+        if (button->IsDown()) {
+            Configuration::IsBlocking = true;
+            if (Configuration::Debug) {
+                logger::debug("Blocking mode ON");
+            }
+        } else if (button->IsUp()) {
+            Configuration::IsBlocking = false;
+            if (Configuration::Debug) {
+                logger::debug("Blocking mode OFF");
             }
         }
+        return false;
     }
 
-    if (event->device == RE::INPUT_DEVICE::kKeyboard) {
-        if (auto button = event->AsButtonEvent()) {
-            if (button->GetIDCode() == RE::BSWin32KeyboardDevice::Key::kN && button->IsDown()) {
-                SKSEMenuFramework::SetHotkeyEnabled(!SKSEMenuFramework::IsHotkeyEnabled());
+    // Suppress keys while holding
+    if (Configuration::IsBlocking && button->IsDown()) {
+        if (Configuration::IsKeySuppressed(keyCode)) {
+            if (Configuration::Debug) {
+                logger::debug("Suppressed key 0x{:X}", keyCode);
             }
-        }
-    }
-    if (event->device == RE::INPUT_DEVICE::kKeyboard) {
-        if (auto button = event->AsButtonEvent()) {
-            if (button->GetIDCode() == RE::BSWin32KeyboardDevice::Key::kM && button->IsDown()) {
-                SKSEMenuFramework::GetMainWindow()->IsOpen.store(!SKSEMenuFramework::GetMainWindow()->IsOpen.load());
-            }
+            return true;
         }
     }
 
-    return blockThisUserInput;
+    return false;
 }
-
-void __stdcall UI::Example5::RenderWindow() {
-    auto viewport = ImGuiMCP::GetMainViewport();
-
-    // Position window at top right corner
-    ImGuiMCP::ImVec2 windowSize = ImGuiMCP::ImVec2{viewport->Size.x * 0.4f, viewport->Size.y * 0.4f};
-    ImGuiMCP::ImVec2 windowPos = ImGuiMCP::ImVec2{viewport->Pos.x + viewport->Size.x - windowSize.x - 20, viewport->Pos.y + 20};
-
-    ImGuiMCP::SetNextWindowPos(windowPos, ImGuiMCP::ImGuiCond_Appearing, {0, 0});
-    ImGuiMCP::SetNextWindowSize(windowSize, ImGuiMCP::ImGuiCond_Appearing);
-
-    ImGuiMCP::Begin("My First Overlay Window##MenuEntiryFromMod", nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse);
-    ImGuiMCP::Text("Chinese characters (requires chinese font and chinese to be enabled on the ini file): \n%s", u8"测试");
-    ImGuiMCP::Text("Turkish characters (requires turkish font and turkish to be enabled on the ini file): \n%s", u8"ı - I/ i - İ/ ğ - Ğ/ ü - Ü/ ş - Ş/ ö - Ö/ ç - Ç");
-    // You can load only once if you want, but the texture loader creates a cache of your texutre;
-    auto texture = SKSEMenuFramework::LoadTexture("Data\\interface\\unlit-bomb.svg", {100, 100});
-    auto texture2 = SKSEMenuFramework::LoadTexture("Data\\interface\\screenshot.png");
-    ImGuiMCP::Text("Image Display: ");
-    ImGuiMCP::SameLine();
-    ImGuiMCP::Image(texture, ImGuiMCP::ImVec2(100, 100));
-    ImGuiMCP::Image(texture2, ImGuiMCP::ImVec2(640, 360));
-    ImGuiMCP::End();
-}
-
-void __stdcall UI::Example6::Render() {
-    if (ImGuiMCP::Button("Close")) {
-        SKSEMenuFramework::GetMainWindow()->IsOpen = false;
-    }
-    for (auto item : calledEvents) {
-        switch (item) {
-            case
-            SKSEMenuFramework::Model::EventType::kCloseMenu:
-                ImGuiMCP::Text("Close menu");
-                break;
-            case SKSEMenuFramework::Model::EventType::kOpenMenu:
-                ImGuiMCP::Text("Open menu");
-                break;
-        }
-    }
-}
-
-void __stdcall UI::Example6::OnEvent(SKSEMenuFramework::Model::EventType eventType) { 
-    if (SKSEMenuFramework::Model::EventType::kCloseMenu == eventType || SKSEMenuFramework::Model::EventType::kOpenMenu == eventType) {
-        if (calledEvents.size() > 10) {
-            calledEvents.erase(calledEvents.begin());
-        }
-        calledEvents.push_back(eventType); 
-    }
-}
-
-void __stdcall UI::Example7::Render() {
-
-    SKSEMenuFramework::PushFont("MonsieurLaDoulaise-Regular");
-    ImGuiMCP::Text("Hello world");
-    ImGuiMCP::PopFont();
-    SKSEMenuFramework::PushFont("RobotoMono-Regular");
-    ImGuiMCP::Text("Hello world");
-    ImGuiMCP::PopFont();
-}
-
