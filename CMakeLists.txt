@@ -24,8 +24,8 @@ add_include_folder(vendor/include)
 
 cmake_minimum_required(VERSION 3.21)
 set(AUTHOR_NAME "Edzio")
-set(PRODUCT_NAME "InputHotkeySuppress")
-set(BEAUTIFUL_NAME "InputHotkeySuppress")
+set(PRODUCT_NAME "InputHotkeySuppression")
+set(BEAUTIFUL_NAME "InputHotkeySuppression")
 
 project(${PRODUCT_NAME} VERSION 3.0.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)

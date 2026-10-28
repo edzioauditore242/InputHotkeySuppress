@@ -20,9 +20,9 @@ BEGIN
 		BEGIN
 			VALUE "FileDescription", "Execute Hotkeys"
 			VALUE "FileVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@.@PROJECT_VERSION_TWEAK@"
-			VALUE "InternalName", "InputHotkeySuppress.dll"
+			VALUE "InternalName", "InputHotkeySuppression.dll"
 			VALUE "LegalCopyright", "© 2025 Edzio — GPL3 License"
-			VALUE "ProductName", "InputHotkeySuppress"
+			VALUE "ProductName", "InputHotkeySuppression"
 			VALUE "ProductVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
 		END
 	END
