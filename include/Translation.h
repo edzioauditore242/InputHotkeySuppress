@@ -8,10 +8,7 @@ namespace Translation {
     inline std::unordered_map<std::string, std::string> Strings;
 
     inline std::filesystem::path GetTranslationPath() {
-        auto path = SKSE::log::log_directory();
-        if (path) {
-            return *path / "InputHotkeySuppression_translation.txt";
-        }
+        // Now loads from Data\SKSE\Plugins\ so you can ship it with the mod
         return "Data/SKSE/Plugins/InputHotkeySuppression_translation.txt";
     }
 
@@ -43,10 +40,13 @@ namespace Translation {
 
         auto path = GetTranslationPath();
         if (!std::filesystem::exists(path)) {
+            // Create default file next to the plugin
             std::ofstream out(path);
             if (out.is_open()) {
                 out << "; Input Hotkey Suppression - Translation File\n";
-                out << "; Change only the text after the = sign\n\n";
+                out << "; Change only the text after the = sign\n";
+                out << "; Place this file in Data\\SKSE\\Plugins\\\n\n";
+
                 for (const auto& [key, value] : Strings) {
                     out << key << "=" << value << "\n";
                 }

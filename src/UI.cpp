@@ -13,6 +13,7 @@ void UI::Register() {
     SKSEMenuFramework::SetSection("Input Hotkey Suppression");
     SKSEMenuFramework::AddSectionItem("Settings", RenderSettings);
 
+    // Create windows (start closed)
     AddKeyWindow = SKSEMenuFramework::AddWindow(RenderAddWindow, true);
     if (AddKeyWindow) AddKeyWindow->IsOpen = false;
 
@@ -131,10 +132,9 @@ void __stdcall UI::RenderAddWindow() {
     if (!AddKeyWindow || !AddKeyWindow->IsOpen) return;
 
     auto viewport = ImGuiMCP::GetMainViewport();
-    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{420.0f, 280.0f}, ImGuiMCP::ImGuiCond_Appearing);
     ImGuiMCP::SetNextWindowPos(ImGuiMCP::ImVec2{viewport->Size.x * 0.5f, viewport->Size.y * 0.5f}, ImGuiMCP::ImGuiCond_Appearing, ImGuiMCP::ImVec2{0.5f, 0.5f});
 
-    ImGuiMCP::Begin(Translation::Get("ADD_WINDOW_TITLE"), nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse);
+    ImGuiMCP::Begin(Translation::Get("ADD_WINDOW_TITLE"), nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse | ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize);
 
     static char nameBuffer[64] = "";
     ImGuiMCP::InputText(Translation::Get("NAME"), nameBuffer, sizeof(nameBuffer));
@@ -198,13 +198,11 @@ void __stdcall UI::RenderEditWindow() {
     if (!EditKeyWindow || !EditKeyWindow->IsOpen) return;
 
     auto viewport = ImGuiMCP::GetMainViewport();
-    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{420.0f, 280.0f}, ImGuiMCP::ImGuiCond_Appearing);
     ImGuiMCP::SetNextWindowPos(ImGuiMCP::ImVec2{viewport->Size.x * 0.5f, viewport->Size.y * 0.5f}, ImGuiMCP::ImGuiCond_Appearing, ImGuiMCP::ImVec2{0.5f, 0.5f});
 
-    ImGuiMCP::Begin("Edit Suppression Key", nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse);
+    ImGuiMCP::Begin("Edit Suppression Key", nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse | ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize);
 
     static char nameBuffer[64] = "";
-    // Load current name once when window opens
     static bool initialized = false;
     if (!initialized) {
         strcpy_s(nameBuffer, Configuration::TempEditName.c_str());
@@ -262,10 +260,9 @@ void __stdcall UI::RenderDeleteConfirm() {
     if (!DeleteConfirmWindow || !DeleteConfirmWindow->IsOpen) return;
 
     auto viewport = ImGuiMCP::GetMainViewport();
-    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{360.0f, 140.0f}, ImGuiMCP::ImGuiCond_Appearing);
     ImGuiMCP::SetNextWindowPos(ImGuiMCP::ImVec2{viewport->Size.x * 0.5f, viewport->Size.y * 0.5f}, ImGuiMCP::ImGuiCond_Appearing, ImGuiMCP::ImVec2{0.5f, 0.5f});
 
-    ImGuiMCP::Begin("Confirm Delete", nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse);
+    ImGuiMCP::Begin("Confirm Delete", nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse | ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize);
 
     if (Configuration::DeleteIndex < Configuration::SuppressedList.size()) {
         auto& entry = Configuration::SuppressedList[Configuration::DeleteIndex];
@@ -306,6 +303,7 @@ void __stdcall UI::RenderOverlay() {
     const char* text = Translation::Get("SUPPRESSION_ACTIVE");
 
     ImGuiMCP::ImVec2 textSize = ImGuiMCP::CalcTextSize(text, 0, false, 0);
+
     ImGuiMCP::ImVec2 pos{ImGuiMCP::GetIO()->DisplaySize.x - textSize.x - 20.0f, 20.0f};
 
     ImGuiMCP::ImDrawListManager::AddText(drawList, pos, IM_COL32(255, 60, 60, 230), text);
@@ -355,7 +353,7 @@ bool __stdcall UI::OnInput(RE::InputEvent* event) {
         return false;
     }
 
-    // Suppress
+    // Suppress keys while holding
     if (Configuration::IsBlocking && button->IsDown()) {
         if (Configuration::IsKeySuppressed(keyCode)) {
             return true;

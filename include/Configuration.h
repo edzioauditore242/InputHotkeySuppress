@@ -75,7 +75,7 @@ namespace Configuration {
         auto path = GetIniPath();
         if (!std::filesystem::exists(path)) {
             // Default list
-            SuppressedList = {{"Inventory", 0x17}, {"Magic", 0x24}, {"Map", 0x32}, {"Tween Menu", 0x0F}, {"Favorites", 0x21}};
+            SuppressedList = {{"Inventory", 0x17}, {"Magic", 0x19}, {"Map", 0x32}, {"Journal", 0x24}, {"Hotkey: 1", 0x02}};
             Save();
             return;
         }
