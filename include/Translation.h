@@ -16,7 +16,7 @@ namespace Translation {
         Strings.clear();
 
         // Default English
-        Strings["SUPPRESSION_ACTIVE"] = "SUPPRESSION ACTIVE";
+        Strings["SUPPRESSION_ACTIVE"] = "Vanilla Input Suppression Active";
         Strings["ENABLE_MOD"] = "Enable Mod";
         Strings["SHOW_STATUS_OVERLAY"] = "Show Status Overlay";
         Strings["DEBUG"] = "Debug Logging";

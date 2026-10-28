@@ -40,7 +40,6 @@ namespace Configuration {
 
     // ====================== INI PATH ======================
     inline std::filesystem::path GetIniPath() {
-        // Always use Data\SKSE\Plugins\ so it can be shipped with the mod
         return "Data/SKSE/Plugins/InputHotkeySuppression.ini";
     }
 
